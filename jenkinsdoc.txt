@@ -1,0 +1,253 @@
+docker build -t marm-router-shared-uat --build-arg PROJECT=shared-uat .
+docker run -d --name marm-router --net marm-router -p 80:80 --log-driver=json-file --log-opt max-size=100m --log-opt max-file=3 marm-router-shared-uat
+
+curl -X POST \
+http://marm-dkr-uat-01.bmnet.ru/user/login \
+-H 'Content-Type: application/json' \
+-H 'X-Marm-Token: fkr_post_' \
+-H 'X-Marm-Version: 2.4.12' \
+-H 'X-Project-Version: v1d6' \
+-H 'cache-control: no-cache' \
+-d '{
+"login":"admin",
+"password":"123456"
+}'
+
+
+
+
+
+docker run -d -u root -p 8080:8080 -p 50000:50000 -v /var/run/docker.sock:/var/run/docker.sock -v /var/jenkins_home:/var/jenkins_home --name jenkins jenkins/jenkins:latest
+
+docker run -d --privileged  --network jenkins  --network-alias docker  -v /jenkins:/var/jenkins_home  -p 8080:8080 -p 50000:50000 -v /var/run/docker.sock:/var/run/docker.sock --name jenkins jenkins/jenkins:latest
+version: '3'
+services:
+  jenkins:
+    image: jenkins/jenkins:latest
+    user: "20000:20000"
+    container_name: jenkins
+    ports:
+      - "5000:5000"
+      - "8080:8080"
+    volumes:
+      - /jenkins:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+
+
+      pipeline {
+    agent none
+    stages {
+       stage('slave') {
+          agent {
+                  docker { 
+                      image 'ansible' 
+                      label 'jenkins_slave_rsa'
+                  }
+                  
+              }
+              steps {
+                sh '''ansible --version'''
+              }  
+                
+        }
+    }
+        
+}
+
+
+docker run -u jenkins --privileged -d --name jenkins -p 8080:8080 -p 5000:5000 -v /var/run/docker.sock:/var/run/docker.sock -v /jenkins:/var/jenkins_home jenkins/jenkins
+
+
+Jenkins
+
+Для Jenkins используем Jenkins Pipeline плагин и Groovy скрипты.
+
+Основной скрипт jm-monitoring-dev-provision.groovy содержит фукнции:
+
+
+#!/usr/bin/env groovy
+def templateValidate(infraUrl='1', env='2', resGroup='3', templateFile='4', paramFile='5') {
+
+   docker.image('microsoft/azure-cli').inside('-v /var/run/docker.sock:/var/run/docker.sock') {
+
+        git branch: "${BRANCH}", credentialsId: 'jm-github', url: "${infraUrl}"
+
+        stage('Temlate validate') {
+            sh "azure login -v -u ${AZURUSER} -p ${AZUREPASS}"
+            sh "azure account set -v ${SUBSCRIPTION}"
+            sh "azure group template validate -g ${resGroup} -f jm-monitoring/${templateFile} -e jm-monitoring/${paramFile}"
+        }
+    }
+}
+def environmentUpdate(infraUrl='1', env='2', resGroup='3', templateFile='4', paramFile='5', tag='6') {
+    docker.image('microsoft/azure-cli').inside('-v /var/run/docker.sock:/var/run/docker.sock') {
+        git branch: "${BRANCH}", credentialsId: 'jm-github', url: "${infraUrl}"
+        stage('Environment update') {
+            sh "azure login -v -u ${AZURUSER} -p ${AZUREPASS}"
+            sh "azure account set -v ${SUBSCRIPTION}"
+            sh "azure group deployment create -n ${tag} -g ${resGroup} -f jm-monitoring/${templateFile} -e jm-monitoring/${paramFile}"
+        }
+    }
+}
+def verify(msg='1') {
+    stage 'Verify'
+    input id: 'Deploy', message: "${msg}", ok: 'Deploy!'
+}
+return this
+(не забываем return this)
+
+И скрипт провижена самого окружения:
+
+#!/usr/bin/env groovy
+node {
+    TAG = "${env.BUILD_TAG}"
+    INFRAURL = 'https://github.com/jm/azure-infrastructure.git'
+    RESGROUP = "${RESGROUP}"
+    TMPL = "${TMPL}"
+    PARAMS = "${PARAMS}"
+    dir('buildscripts') {
+        git branch: 'master', credentialsId: 'jm-github', url: 'https://github.com/jm/jm-jenkins.git'
+    }
+    git branch: "${BRANCH}", credentialsId: 'jm-github', url: "${INFRAURL}"
+    def provision = load 'buildscripts/jm-monitoring-provision.groovy'
+    provision.templateValidate("${INFRAURL}", "${ENV}", "${RESGROUP}", "${TMPL}", "${PARAMS}")
+    provision.verify('Is Verify OK? Proceed with an environment deployment?')
+    provision.environmentUpdate("${INFRAURL}", "${ENV}", "${RESGROUP}", "${TMPL}", "${PARAMS}", "${TAG}")
+}
+
+
+#############################
+
+Запуск ansible 
+Полностью скрипт выглядит так:
+
+
+#!/usr/bin/env groovy
+def ansibleVmProvisionValidate(env='1') {
+  docker.image('williamyeh/ansible:master-ubuntu16.04').inside('-v /var/run/docker.sock:/var/run/docker.sock') {
+    git branch: "${BRANCH}", credentialsId: 'github', url: "${INFRA_URL}"
+    stage('Playbook validate') {
+       sh 'chmod 400 monitoring/.ssh/monitoring'
+       sh "ansible-playbook --limit=${env} --check ${WORKDIR}/provision.yml"
+       }
+    }
+}
+
+def ansibleVmProvisionApply(env='1') {
+  docker.image('williamyeh/ansible:master-ubuntu16.04').inside('-v /var/run/docker.sock:/var/run/docker.sock') {
+    git branch: "${BRANCH}", credentialsId: 'github', url: "${INFRA_URL}"
+    stage('Playbook apply') {
+          sh 'chmod 400 monitoring/.ssh/monitoring'
+          sh "ansible-playbook --limit=${env} ${WORKDIR}/provision.yml"
+        }
+    }
+}
+
+return this
+Второй скрипт — monitoring-ansible-provision.groovy — будет вызываться непоследственно из Jenkins и содержит несколько переменных и вызывает функции из monitoring-ansible.groovy.
+
+Его содержимое:
+
+
+#!/usr/bin/env groovy
+
+node {
+
+    // 'dev' or 'production'
+
+    ENV="${ENV}"
+
+    TAG = "${env.BUILD_TAG}"
+
+    // Ansible playbooks repo URL
+
+    INFRA_URL = "${INFRA_URL}"
+   // Jenkins build script repo URL
+
+    BUILD_REPO_URL = "${BUILD_REPO_URL}"
+// expor variable to path to Ansible dir in Infra repo
+    WORKDIR='monitoring/ansible/monitoring'
+
+    // clone $BUILD_REPO_URL to dedicated directory ./buildscripts/
+
+    dir('buildscripts') {
+
+        git branch: 'master', credentialsId: 'github', url: "${BUILD_REPO_URL}"
+
+    }
+
+
+    def provision = load 'buildscripts/monitoring/monitoring-ansible.groovy'
+
+    provision.ansibleVmProvisionValidate("${ENV}")
+
+    provision.ansibleVmProvisionApply("${ENV}")
+
+}
+Настройка Jenkins Pipeline
+
+В параметрах задачи Jenkins задаются переменные, которые потом используются скриптом 
+monitoring-ansible-provision.groovy — ENV, BRANCH, INFRA_URL, BUILD_REPO_URL:
+И настройки Pipeline, где описывается вызов самого скрипта:
+Ansbile
+Сейчас Ansible имеет только одну роль — nginx, которая выполняет установку NGINX.
+Структура файлов в репозитории выглядит так:
+$ tree monitoring/
+
+monitoring/
+├── ansible
+│   └── monitoring
+│       ├── ansible.cfg
+│       ├── hosts
+│       ├── provision.retry
+│       ├── provision.yml
+│       └── roles
+│           └── nginx
+│               ├── handlers
+│               │   └── main.yml
+│               ├── tasks
+│               │   └── main.yml
+│               ├── templates
+│               │   ├── nginx.conf
+│               │   └── nginx_vhost.conf
+│               └── vars
+│                   └── main.yml
+├── monitoring.json
+├── monitoring.parameters.json
+├── metadata.json
+└── README.md
+Файлы monitoring.json и monitoring.parameters.json — используются Azure Resource Manager для развёртывания группы ресурсов, которая включает в себя виртуальную машину, см. пост тут>>>.
+Настройка самого сервера выполянется уже Ansbile.
+Файлы тут:
+ansible.cfg: параметры и переменные, путь к нему передаётся с помощью переменной окружения $ANSIBLE_CONFIG из Jenkins
+hosts: содержит описание хостов и некоторых специфичных для хостов и окружений переменных
+provision.yml: роли, которые применяются при сетапе машины
+Содержимое ansible.cfg:
+
+[defaults]
+ansible_connection=ssh
+remote_user=admin
+host_key_checking=False
+inventory = monitoring/ansible/monitoring/hosts
+private_key_file = monitoring/.ssh/monitoring
+hosts:
+[dev]
+dev.monitor.domain.ms hostname=dev.monitor.domain.ms
+[dev:vars]
+upstream_name=google
+upstream_url=google.com
+[production]
+monitor.domain.ms
+Останавливаться на них подробно не буду, описаны в предыдущем посте, с небольшими отличиями (тут часть перменных уже вынесена в глобальные параметры файла ansbile.cfg).
+И файл provision.yml — содержит вызов роли nginx:
+- hosts: all
+  become:
+    true
+  roles:
+   - nginx
+На каком хосте будет выполняться и применяться роль — определяется при вызове ansible-playbook из groovy-скрипта с помощью --limit:
+...
+sh "ansible-playbook --limit=${env} --check ${WORKDIR}/provision.yml"
+...
+Собственно, но этом — всё.
+Пример выполнения:

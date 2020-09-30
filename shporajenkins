@@ -1,0 +1,1984 @@
+
+Декларативный стиль
+
+#################helloword###################
+pipeline{
+    agent any <----где выполняется на каком серваке  any значит везде
+          {
+               node "Slave1" <--название ноды
+               customWorkspace "/home/gitlab" <---алтернативная директория выполнения
+          }
+    stages{
+        stage("Build"){
+            steps{
+                echo "Hello World"
+            }
+        }
+        stage('Build') {
+            steps {
+			
+				script{  <====так запукается скрипт груви
+				
+					def name = "jeff"
+					
+					if(name == "jeff")
+						println("hi ${name}")
+					else
+						println("hi human")				
+												
+					sleep 2	
+					echo "end of script"
+				}
+            }
+
+    }
+}
+
+----------------------------------------------------------
+ steps {
+                retry(3) {   будет повторять три раз 
+					echo "before throwing error"
+                    error "error in retry"
+                }
+                
+                echo "after retry(3)"
+            }
+-----------------------------------------------------------
+ПОВТОРЫ
+retry
+-----
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            steps {
+                retry(3) {
+					echo "before throwing error"
+                    error "error in retry"
+                }
+                
+                echo "after retry(3)"
+            }
+        }
+    }
+}
+---------------------------------------------------------
+ТАЙМАУТ
+timeouts
+--------
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            steps {
+                timeout(time: 1, unit: 'SECONDS') //DAYS,HOURS,MICROSECONDS ,MILLISECONDS ,MINUTES ,NANOSECONDS ,SECONDS 
+				{
+                    echo "sleeping in timeout"
+                    sleep 2
+                }
+            }
+        }
+    }
+}
+
+retry->timeout
+--------------
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            steps {
+                retry(3) {
+				    timeout(time: 1, unit: 'SECONDS') {
+							sleep 2
+					}
+                    echo "after timeout"
+                }
+            }
+        }
+    }
+}
+timeout: Обеспечить ограничение по времени
+Выполняет код внутри блока с установленным пределом времени ожидания. Если ограничение по времени достигнуто, генерируется исключение (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException), которое приводит к прерыванию сборки (если только она не перехватывается и не обрабатывается каким-либо образом). Единица не является обязательной, но по умолчанию минуты.
+time
+Тип: int
+activity (по желанию)
+Тайм-аут после отсутствия активности в журналах для этого блока вместо абсолютной продолжительности.
+Тип: boolean
+unit (по желанию)
+Значения: NANOSECONDS , MICROSECONDS, MILLISECONDS, SECONDS, MINUTES, HOURS,DAYS
+
+----------------------------------------
+ТУЛСЫ
+
+
+
+pipeline {
+    agent any
+
+    stages {
+        stage('Build') {
+		    tools {
+				maven 'maven3_5_2' 
+				//maven 'maven3_0_5' 
+			}
+            steps {
+                sh 'mvn --version'
+            }
+        }
+    }
+}
+tool: Использовать инструмент из предустановленной установки инструмента
+Привязывает установку инструмента к переменной (возвращается домашний каталог инструмента). Configure SystemЗдесь доступны только инструменты, уже настроенные . Если исходный установщик инструмента имеет функцию автоматического предоставления, тогда инструмент будет установлен по мере необходимости.
+name
+Тип: String
+type (по желанию)
+Тип: Strin
+
+-------------------------------------------------------------------------------
+
+
+OPTIONS
+
+
+Positive example
+----------------
+pipeline{
+    agent any
+    stages{
+        stage("Build"){
+			options{
+				retry(3)
+			}
+            steps{
+                echo "Before error statement"
+                error "Error statement just got executed"
+                echo "After error statement"
+            }
+        }
+    }
+}
+
+Negative example
+----------------
+pipeline{
+    agent any
+    stages{
+        stage("Build"){
+			options{
+				retry(3)
+			}
+            steps{
+                echo "Before setting current build to FAILURE"
+                script {
+                    currentBuild.result = 'FAILURE'
+                }
+				echo "After setting current build to FAILURE"
+            }
+        }
+    }
+}
+options Директива позволяет настраивать параметры трубопровода специфических внутри самого трубопровода.
+Конвейер предоставляет ряд таких опций, например buildDiscarder, 
+но они также могут быть предоставлены плагинами, такими как timestamps.
+
+необходимые
+нет
+параметры
+Никто
+Разрешается
+Только один раз, внутри pipelineблока.
+Доступные Варианты
+################
+buildDiscarder
+Сохранение артефактов и вывод консоли на определенное количество последних запусков конвейера. Например:options { buildDiscarder(logRotator(numToKeepStr: '1')) }
+#################
+checkoutToSubdirectory
+Выполните автоматическую проверку исходного кода в подкаталоге рабочей области. Например:options { checkoutToSubdirectory('foo') }
+######################
+disableConcurrentBuilds
+Запретить одновременное выполнение конвейера. Может быть полезно для предотвращения одновременного доступа к общим ресурсам и т. Д. Например:options { disableConcurrentBuilds() }
+########################
+disableResume
+Не позволяйте конвейеру возобновить работу, если мастер перезапустится. Например:options { disableResume() }
+#########################
+newContainerPerStage
+Используется с dockerили dockerfileверхнего уровня агента. Если указано, каждый этап будет выполняться в новом экземпляре контейнера на одном и том же узле, а не на всех этапах в одном экземпляре контейнера.
+######################
+overrideIndexTriggers
+Позволяет переопределить обработку по умолчанию триггеров индексации ветвей. Если триггеры индексации филиалов отключены для метки нескольких филиалов или организации, они options { overrideIndexTriggers(true) } будут включены только для этой работы. В противном случае options { overrideIndexTriggers(false) }отключит триггеры индексации веток только для этой работы.
+#######################
+preserveStashes
+Сохраните тайники из завершенных сборок для использования при перезапуске этапа. Например: options { preserveStashes() }сохранить тайники из последней завершенной сборки или options { preserveStashes(buildCount: 5) }сохранить тайники из пяти последних завершенных сборок.
+#########################
+quietPeriod
+Установите период ожидания в секундах для конвейера, переопределяя глобальное значение по умолчанию. Например:options { quietPeriod(30) }
+##############################
+повторная попытка
+При неудаче повторите весь конвейер указанное количество раз. Например:options { retry(3) }
+###############################
+skipDefaultCheckout
+По умолчанию пропустите извлечение кода из системы контроля версий в agent директиве.
+ Например:options { skipDefaultCheckout() }
+###############################
+skipStagesAfterUnstable
+Пропускать этапы, когда статус сборки становится НЕУСТОЙЧИВЫМ. Например:options { skipStagesAfterUnstable() }
+######################
+Тайм-аут
+Установите период ожидания для запуска конвейера, после которого Jenkins должен прервать конвейер. Например:options { timeout(time: 1, unit: 'HOURS') }
+
+Пример 8. Глобальное время ожидания, декларативный конвейер
+pipeline {
+    agent any
+    options {
+        timeout(time: 1, unit: 'HOURS') 
+    }
+    stages {
+        stage('Example') {
+            steps {
+                echo 'Hello World'
+            }
+        }
+    }
+}
+Указание глобального времени ожидания выполнения, равного одному часу, после которого Jenkins прервет выполнение конвейера.
+метки времени
+Предварительно добавьте все выходные данные консоли, сгенерированные при запуске конвейера,
+ ко времени, когда линия была выпущена. Например:options { timestamps() }
+#############################
+parallelsAlwaysFailFast
+Установите failfast true для всех последующих параллельных этапов в конвейере. Например:options { parallelsAlwaysFailFast() }
+###############################
+Полный список доступных опций в ожидании завершения INFRA-1503 .
+варианты сцены
+options Директива для stage схожа с options директивой в корне трубопровода. 
+Тем не менее, stage-level options может содержать только такие шаги, как retry, timeoutили timestamps,
+ или декларативные опции, которые имеют отношение к stage, like skipDefaultCheckout.
+
+Внутри a stage шаги в options директиве вызываются перед вводом agent или проверкой каких-либо whenусловий.
+
+Доступные варианты сцены
+
+skipDefaultCheckout
+По умолчанию пропустите извлечение кода из системы контроля версий в agentдирективе. Например:options { skipDefaultCheckout() }
+
+Тайм-аут
+Установите период ожидания для этой стадии, после чего Дженкинс должен прервать стадию. Например:options { timeout(time: 1, unit: 'HOURS') }
+
+Пример 9. Таймаут этапа, декларативный конвейер
+pipeline {
+    agent any
+    stages {
+        stage('Example') {
+            options {
+                timeout(time: 1, unit: 'HOURS') 
+            }
+            steps {
+                echo 'Hello World'
+            }
+        }
+    }
+}
+Указание таймаута выполнения в один час для Exampleэтапа, после которого Дженкинс прервет выполнение конвейера.
+повторная попытка
+При неудаче повторите этот этап указанное количество раз. Например:options { retry(3) }
+------------------------------------------------------------
+метки времени
+Все выходные данные консоли, сгенерированные на этом этапе, 
+добавьте ко времени, когда линия была выпущена.
+ Например:options { timestamps() }
+TimeStamper
+timestamps: Метки времени
+wrap([$class: 'TimestamperBuildWrapper']): Добавление меток времени к выходу консоли
+
+stage level
+--------------
+
+pipeline{
+    agent any
+    stages{
+        stage('Build'){
+		    options { 
+				timestamps() 
+			}
+            steps{
+                echo "Hello World in Build"
+                echo "Hello World in Build Again"
+            }
+        }
+        stage('Test'){
+            steps{
+                echo "Hello World in Test"
+                echo "Hello World in Test Again"
+            }
+        }		
+    }
+}
+pipeline level
+--------------
+pipeline{
+    agent any
+
+	options { 
+		timestamps() 
+	}	
+	
+    stages{
+        stage('Build'){
+
+            steps{
+                echo "Hello World"
+                echo "Hello World Again"
+            }
+        }
+	    stage('Test'){
+
+            steps{
+                echo "Hello World in Test"
+                echo "Hello World in Test Again"
+            }
+        }		
+    }		
+}
+--------------------------------------------------------------------
+Environment 
+
+Переменные среды могут быть установлены глобально, как в примере ниже, или для каждой стадии.
+ Как и следовало ожидать, установка переменных среды для каждой стадии означает,
+  что они будут применяться только к той стадии, на которой они определены.
+  pipeline {
+    agent {
+        label '!windows'
+    }
+
+    environment {
+        DISABLE_AUTH = 'true'
+        DB_ENGINE    = 'sqlite'
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                echo "Database engine is ${DB_ENGINE}"
+                echo "DISABLE_AUTH is ${DISABLE_AUTH}"
+                sh 'printenv'
+            }
+        }
+    }
+}
+pipeline {
+    agent any
+
+    stages {
+        stage('Build') {
+            environment { 
+                SOME_USERNAME_PASSWORD = credentials('some_username_password') <----указывается id в credentials
+                SOME_SECRET = credentials('some_secret') 
+            }
+            steps {
+				echo "SOME_USERNAME_PASSWORD ${SOME_USERNAME_PASSWORD}" //SOME_USERNAME_PASSWORD is in the format of username:password
+                echo "SOME_USERNAME_PASSWORD_USR ${SOME_USERNAME_PASSWORD_USR}"
+                echo "SOME_USERNAME_PASSWORD_PSW ${SOME_USERNAME_PASSWORD_PSW}"
+                echo "SOME_SECRET ${SOME_SECRET}"
+            }
+        }
+    }
+}
+---------------------------------------------------------------
+when условие
+henДиректива позволяет Pipeline , чтобы определить , 
+является ли стадия должна быть выполнена в зависимости от заданного условия. 
+whenДиректива должна содержать , по крайней мере , одно условие. 
+Если whenдиректива содержит более одного условия, 
+все дочерние условия должны возвращать true для выполнения этапа. 
+Это так же, как если бы дочерние условия были вложены в allOfусловие . 
+Если используется anyOfусловие, обратите внимание, что условие пропускает оставшиеся тесты,
+ как только найдено первое «истинное» условие.
+
+Более сложные условные структуры могут быть построены с использованием гнездовых условий: not, allOfили anyOf.
+ Условия вложения могут быть вложены на любую произвольную глубину.
+pipeline {
+    agent any
+	environment{
+		version="1.0"
+		some_name="jeff"
+	}
+    stages {
+        stage("Build") {
+            when { когда
+                allOf {  оба из
+					environment name: "version", value: "1.0"
+					environment name: "some_name", value: "jeff"
+				}
+            }
+            steps {
+                echo "Building allOf ${version} ${some_name}"
+            }
+        }
+    }
+}
+buildingTag
+Выполните этап, когда сборка создает тег. Пример:when { buildingTag() }
+Tag
+Выполните этап, если TAG_NAMEпеременная соответствует заданному шаблону. 
+Пример: when { tag "release-*" }. Если указан пустой шаблон, сцена будет выполнена,
+ если TAG_NAMEпеременная существует (так же, как buildingTag()).
+
+ when { changelog ''} проверяет были ли измения в ковычках 
+ when {changeRequest} 
+ В простейшей форме это вернет true, если этот конвейер создает запрос на изменение, такой как запрос на GitHub. 
+ Вы также можете выполнить более подробные проверки запроса на изменение, 
+ что позволит вам спросить: «Это запрос на изменение в основной ветви?» и многое другое.
+ Выполняет этап, если текущая сборка предназначена для «запроса на изменение» (он же запрос на извлечение на GitHub и Bitbucket,
+  запрос на слияние на GitLab, изменение в Gerrit и т. Д.). Когда параметры не передаются пробеги сценических по запросу любого изменения,
+   например: when { changeRequest() }.
+Добавив атрибут фильтра с параметром в запрос на изменение, можно запустить этап только для соответствующих запросов на изменение. 
+Возможные атрибуты id, target, branch, fork, url, title, author, authorDisplayName, и authorEmail.
+ Каждый из них соответствует CHANGE_*переменной окружения, например: when { changeRequest target: 'master' }.
+ 
+ when {
+     changeset glob: "*.js"
+ }
+Выполните этап, если набор изменений SCM сборки содержит один или несколько файлов, соответствующих данному шаблону. 
+Пример:when { changeset "**/*.js" }
+Необязательный параметр comparatorможет быть добавлен после атрибута, чтобы указать, как оцениваются любые шаблоны для соответствия:
+ EQUALSдля простого сравнения строк GLOB(по умолчанию) для нечувствительного к регистру глобуса пути стиля ANT это можно отключить с
+  помощью caseSensitiveпараметра или REGEXPдля совпадение регулярного выражения. Например: илиwhen { changeset pattern: ".TEST\\.java",
+   comparator: "REGEXP" }when { changeset pattern: "*/*TEST.java", caseSensitive: true }
+
+ BeforeAgent
+ pipeline {
+    agent none
+	environment{
+		DEPLOY_TO='dev'
+	}
+    stages {
+        stage('Build') {
+            agent {
+                label "Slave 1"
+            }
+            when {
+                beforeAgent false
+				environment name: 'DEPLOY_TO', value: 'production'
+            }
+            steps {
+                echo 'Building'
+            }
+        }
+    }
+}  
+По умолчанию whenусловие для stage будет оцениваться после ввода agentдля него stage, 
+если оно определено. Однако это можно изменить, указав beforeAgentпараметр в when блоке.
+ Если beforeAgentустановлено значение true, when условие будет оцениваться в первую очередь,
+  и agent будет введено только в том случае, если when условие оценивается как истинное.
+
+INPUT
+
+pipeline{			
+    agent any
+
+    stages{
+        stage('Build'){	
+			input{
+                    message "Please specify environment:"			
+                    ok "OK" <-----button
+					submitter "dummyuser,admin@localhost.com" специальный пользователь
+					submitterParameter "whoIsSubmitter"
+                    parameters {
+						string(name: 'environment', defaultValue: 'Dev', description: 'Environment to build for (Valid values: Dev, Test, Prod)')
+						string(name: 'version', defaultValue: '1.0', description: 'Version number to build for')
+						booleanParam(name: 'to_deploy_to_environment', defaultValue: true, description: '')
+						choice(choices: 'US-EAST-1\nUS-WEST-2', description: 'What AWS region?', name: 'region')
+						text(name:'myText', defaultValue:'myTextValue', description:'myText')
+						password(name:'myPassword', defaultValue:'myPasswordValue', description:'myDescription')
+						file(name:'myFile', description:'fileDescription')
+						credentials(name:'myCredentials', description:'myCredentailsDesc', required:true)
+                    }
+                }			
+            			
+            steps{			
+				echo "We are building for ${environment}, ${version}, and we are deploying to environment: ${to_deploy_to_environment}"
+				echo "region:${region}, myText: ${myText}, myPassword: ${myPassword}, and myFile: ${myFile}"
+				echo "submitter is: ${whoIsSubmitter}"
+				echo "selected credentials is: ${myCredentials}"
+			}
+        }			
+    }			
+}				
+
+
+POST
+
+Always/success/failure
+---------------------
+pipeline{
+    agent any
+    stages{
+        stage('Build'){
+            steps{
+                    echo "building"
+                    //error("Build failed")
+            }
+        }
+    }
+    post{
+		//Only runs if the current Pipeline’s or stage’s run has a "success" status
+		success{
+			echo 'post->success is called'
+		}
+		//Only runs if the current Pipeline’s or stage’s run has a "failed" status
+		failure { 
+            echo 'post->failure is called'
+        }
+		//Runs regardless of the completion status of the Pipeline’s or stage’s run.
+        always { 
+            echo 'post->always is called'
+        }
+    }
+}
+
+changed 
+-------------
+pipeline{
+    agent any
+    stages{
+        stage('Build'){
+            steps{
+                    echo "building"					
+					//script{
+					//	currentBuild.result = 'UNSTABLE'
+					//}
+            }
+        }
+    }
+    post{
+		//Only runs if the current Pipeline’s or stage’s run has a different completion status from its previous run.
+        changed { 
+            echo 'post->changed is called'
+        }
+    }
+}
+
+unstable
+---------
+using example from above
+
+
+		//Only run the steps in post if the current Pipeline’s or stage’s run has an "unstable" status, usually caused by test failures, code violations, etc. 
+		unstable { 
+            echo 'post->unstable is called'
+        }
+
+
+
+
+fixed
+------
+pipeline{
+    agent any
+    stages{
+        stage('Build'){
+            steps{
+                    echo "building"
+            }
+        }
+    }
+    post{
+		//Only runs if the current Pipeline’s or stage’s run is successful and the previous run failed or was unstable.
+		fixed { 
+            echo 'post->fixed is called'
+        }
+    }
+}
+
+
+regression
+-----------
+pipeline{
+    agent any
+    stages{
+        stage('Build'){
+            steps{
+                    echo "building"
+					error("Build failed")
+            }
+        }
+    }
+    post{
+		//Only runs if the current Pipeline’s or stage’s status is failure, unstable, or aborted and the previous run was successful.
+		regression { 
+            echo 'post->regression is called'
+        }
+    }
+}
+
+aborted
+-------
+
+pipeline{
+    agent any
+    stages{
+        stage('Build'){
+            steps{
+                    echo "building"
+					script{
+						currentBuild.result = 'ABORTED'
+					}
+            }
+        }
+    }
+    post{
+		//Only runs if the current Pipeline’s or stage’s run has an "aborted" status, usually due to the Pipeline being manually aborted. 
+		aborted { 
+            echo 'post->aborted is called'
+        }
+    }
+}
+
+
+
+cleanup
+--------
+pipeline{
+    agent any
+    stages{
+        stage('Build'){
+            steps{
+                    echo "building"
+                    //error("Build failed")
+            }
+        }
+    }
+    post{
+		//Only runs if the current Pipeline’s or stage’s run has a "success" status, typically denoted by blue or green in the web UI.
+		success{
+			echo 'post->success is called'
+		}
+		//Only runs if the current Pipeline’s or stage’s run has a "failed" status, typically denoted by red in the web UI.
+		failure { 
+            echo 'post->failure is called'
+        }
+		//Runs regardless of the completion status of the Pipeline’s or stage’s run.
+        always { 
+            echo 'post->always is called'
+        }
+		//Runs after every other post condition has been evaluated, regardless of the status of Pipeline or stage
+		cleanup{
+			echo 'post->cleanup is called'
+		}
+    }
+}
+changed
+Запускайте шаги только в том postслучае, если текущий запуск конвейера или этапа имеет 
+состояние завершения, отличное от предыдущего запуска.
+lways
+Выполните шаги в postразделе независимо от состояния завершения выполнения конвейера или этапа.
+
+changed
+Запускайте шаги только в том postслучае, если текущий запуск конвейера или этапа имеет состояние завершения, отличное от предыдущего запуска.
+
+fixed
+Запускайте шаги только в том postслучае, если текущий запуск конвейера или этапа был успешным, а предыдущий - неудачным или нестабильным.
+
+regression
+Запускайте шаги только в том postслучае, если текущее состояние конвейера или этапа является ошибочным, нестабильным или прервано, 
+а предыдущий запуск прошел успешно.
+
+aborted
+Выполнять шаги можно только в том postслучае, если текущий конвейер или этап имеет состояние «прервано», обычно из-за того,
+ что конвейер был прерван вручную. Обычно это обозначается серым в веб-интерфейсе.
+
+failure
+Запускайте шаги только в том postслучае, если текущий конвейер или этап имеет состояние «не выполнено», 
+обычно обозначается красным цветом в веб-интерфейсе.
+
+success
+Запускайте шаги только в том postслучае, если текущий запуск конвейера или этапа имеет статус «успех», 
+обычно обозначаемый синим или зеленым в веб-интерфейсе пользователя.
+
+unstable
+Выполняйте шаги только в том postслучае, если текущий конвейер или этап имеет состояние «нестабильно»,
+ обычно вызванное сбоями теста, нарушениями кода и т. Д. Это обычно обозначается желтым цветом в веб-интерфейсе пользователя.
+
+unsuccessful
+Запускайте шаги только в том postслучае, если текущий запуск конвейера или этапа не имеет статуса «успех».
+ Обычно это обозначается в веб-интерфейсе в зависимости от ранее упомянутого статуса.
+
+cleanup
+Выполните шаги в этом postсостоянии после того, как все остальные postусловия будут оценены, независимо от состояния конвейера или этапа.
+
+
+
+pipeline {
+    agent any
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '1')) 
+    }
+    stages {
+        stage('Build') {
+            steps {
+                echo 'Hello World'
+            }
+        }
+    }
+}
+Сохранение артефактов и вывод консоли на определенное количество последних запусков конвейера.
+ Например:options { buildDiscarder(logRotator(numToKeepStr: '1')) }
+
+
+
+
+ pipeline {	
+    agent any	
+    //options {	
+    //    disableConcurrentBuilds()	
+    //}	
+    stages {	
+        stage('Build') {	
+            steps {	
+                sleep(time: 10, unit: 'SECONDS') 	
+                echo 'Hello World'	
+            }	
+        }	
+    }	
+}	
+isableConcurrentBuilds
+Запретить одновременное выполнение конвейера. Может быть полезно для предотвращения одновременного доступа к общим ресурсам и т. Д.
+ Например:options { disableConcurrentBuilds() }
+
+
+ overrideIndexTriggers
+Позволяет переопределить обработку по умолчанию триггеров индексации ветвей. Если триггеры индексации филиалов отключены для метки нескольких филиалов 
+или организации они options { overrideIndexTriggers(true) } будут включены только для этой работы. В противном случае options { overrideIndexTriggers(false) }
+ отключит триггеры индексации веток только для этой работы.
+
+
+ pipeline{	
+    agent any	
+    //options { 
+	//	skipStagesAfterUnstable() 
+	//} 	
+    stages{	
+        stage('Build'){	
+            steps{	
+                echo "setting current build to unstable"	
+                script {	
+                    currentBuild.result = 'UNSTABLE'	
+                }	
+            }	
+        }	
+        stage('Deploy'){	
+            steps{	
+                echo "deploy is running"	
+            }	
+        }        	
+    }	
+}	
+skipStagesAfterUnstable
+Пропускать этапы, когда статус сборки становится НЕУСТОЙЧИВЫМ. 
+Например:options { skipStagesAfterUnstable() }
+
+checkoutToSubdirectory
+Выполните автоматическую проверку исходного кода в подкаталоге рабочей области. 
+Например:options { checkoutToSubdirectory('foo') }
+
+
+pipeline {	
+	agent {
+		docker {
+			image 'ubuntu:latest'
+		}
+	}
+    options {	
+        newContainerPerStage()
+    }	
+    stages {	
+        stage('Build') {	
+            steps {	
+                sh 'cat /etc/lsb-release'
+            }	
+        }	
+        stage('Deploy') {	
+            steps {	
+                sh 'cat /etc/lsb-release'
+            }	
+        }			
+    }	
+}
+newContainerPerStage
+Используется с dockerили dockerfileверхнего уровня агента. 
+Если указано, каждый этап будет выполняться в новом экземпляре контейнера на одном 
+и том же узле, а не на всех этапах в одном экземпляре контейнера.
+
+
+
+
+pipeline {							
+    agent any							
+    parameters {							
+        string(name: 'environment', defaultValue: 'Dev', description: 'Environment to build for (Valid values: Dev, Test, Prod)')
+		string(name: 'version', defaultValue: '1.0', description: 'Version number to build for')
+		booleanParam(name: 'to_deploy_to_environment', defaultValue: true, description: '')
+		choice(choices: 'US-EAST-1\nUS-WEST-2', description: 'What AWS region?', name: 'region')
+		text(name:'myText', defaultValue:'myTextValue', description:'myText')
+		password(name:'myPassword', defaultValue:'myPasswordValue', description:'myDescription')
+		file(name:'myFile', description:'fileDescription')
+		credentials(name:'myCredentials', description:'myCredentailsDesc', required:true)					
+    }							
+    stages {							
+        stage('Example') {							
+            steps {							
+                echo "We are building for ${params.environment}, ${params.version}, and we are deploying to environment: ${params.to_deploy_to_environment}"
+				echo "region:${params.region}, myText: ${params.myText}, myPassword: ${params.myPassword}, and myFile: ${params.myFile}"
+				echo "selected credentials is: ${params.myCredentials}"
+            }							
+        }							
+    }							
+}
+
+pipeline {		
+    agent any		
+    triggers {		
+		//minute, hour, day of month, month, and day of week (0 and 7 are sundays)
+        cron('0 1 2 3 1-7')
+		
+		//cron('H */2 1-3 1,3 2-4')
+		
+		//@yearly, @annually, @monthly, @weekly, @daily, @midnight, @hourly
+		//cron('@daily')
+		
+		//cron('TZ=Europe/London\n0 1 * * 1-7')
+    }		
+    stages {		
+        stage('Build') {		
+            steps {		
+                echo 'Hello World'		
+            }		
+        }		
+    }		
+}
+
+
+triggers Директива определяет автоматизированные способы , в которых трубопровод должен быть повторно запущен. 
+Для конвейеров, которые интегрированы с источником, таким как GitHub или BitBucket, triggersможет не потребоваться,
+ поскольку интеграция на основе веб- хука, вероятно, уже будет присутствовать. В настоящее время доступны триггеры cron, pollSCMи upstream.
+Только один раз, внутри pipeline блока.
+крон
+Принимает строку в стиле cron для определения регулярного интервала, при котором конвейер должен быть повторно запущен,
+ например: triggers { cron('H */4 * * 1-5') }
+
+
+
+pipeline {				
+    agent any				
+    triggers {				
+        pollSCM('* * * * *')				
+    }				
+    stages {				
+        stage('Build') {				
+            steps {	
+                checkout([$class: 'GitSCM', 				
+				branches: [[name: "origin/master"]], 
+				userRemoteConfigs: [[
+                url: 'https://github.com/pipelineascodecourse/pipeline-triggers-pollSCM.git']]])
+            }				
+        }				
+    }				
+}
+pollSCM
+Принимает строку в стиле cron для определения регулярного интервала, с которым Jenkins должен проверять наличие изменений в исходном коде.
+ Если новые изменения существуют, конвейер будет запущен повторно.
+  Например:triggers { pollSCM('H */4 * * 1-5') 
+
+
+
+  pipeline {			
+    agent any			
+    triggers {
+        upstream(upstreamProjects: 'pipeline-triggers-upstream-job1,pipeline-triggers-upstream-job2', 			
+        threshold: hudson.model.Result.SUCCESS)//UNSTABLE, FAILURE, NOT_BUILT, ABORTED
+    }			
+    stages {			
+        stage('Build') {			
+            steps {			
+                echo 'pipeline-triggers-upstream executed'			
+            }			
+        }			
+    }			
+}
+Принимает разделенную запятыми строку заданий и порог. Когда любое задание в строке заканчивается с минимальным порогом, конвейер будет повторно запущен.
+ Например: triggers { upstream(upstreamProjects: 'job1,job2', threshold: hudson.model.Result.SUCCESS) }
+
+ pipeline {			
+    agent any
+    stages {			
+        stage('Build') {			
+            steps {			
+                echo 'pipeline-triggers-upstream-job1 executed'			
+            }			
+        }			
+    }			
+}			
+
+
+pipeline {			
+    agent any
+    stages {			
+        stage('Build') {			
+            steps {			
+				script{
+					currentBuild.result='UNSTABLE'				
+                }
+            }			
+        }			
+    }			
+}			
+pipeline {			
+    agent any
+    stages {			
+        stage('Build') {			
+            steps {			
+                echo 'pipeline-triggers-upstream-job2 executed'			
+            }			
+        }			
+    }			
+}	
+
+
+
+pipeline {
+    agent {
+        docker {
+            image 'maven:3.5.3-jdk-10-slim'
+        }
+    }
+    stages {
+        stage('Build') {
+            steps {
+                sh 'mvn -v'
+            }
+        }
+    }
+}
+Выполните конвейер или этап с указанным контейнером, который будет динамически подготовлен на узле,
+ предварительно настроенном для приема конвейеров на основе Docker, или на узле, соответствующем необязательно определенному label
+ параметру. dockerтакже необязательно принимает argsпараметр, который может содержать аргументы для прямой передачи в docker runвызов,
+  и alwaysPullпараметр, который принудительно docker pullвызывает даже если имя изображения уже присутствует. 
+  Например: agent { docker 'maven:3-alpine' }или
+
+agent {
+    docker {
+        image 'maven:3-alpine'
+        label 'my-defined-label'
+        args  '-v /tmp:/tmp'
+    }
+}
+dockerтакже необязательно принимает параметры a registryUrlи, registryCredentialsIdкоторые помогут указать реестр 
+Docker для использования и его учетные данные. Параметр registryCredentialsIdможет использоваться отдельно для частных репозиториев в док-хабе.
+ Например:
+
+agent {
+    docker {
+        image 'myregistry.com/node'
+        label 'my-defined-label'
+        registryUrl 'https://myregistry.com/'
+        registryCredentialsId 'myPredefinedCredentialsInJenkins'
+    }
+}
+customWorkspace
+Строка. Запуск трубопровода или физическое лицо stageэто agent применяется в пределах этого пользовательского рабочего пространства,
+ а не по умолчанию. Это может быть либо относительный путь, в этом случае пользовательское рабочее пространство будет находиться 
+ под корневым каталогом рабочего пространства на узле, либо абсолютный путь. Например:
+
+agent {
+    node {
+        label 'my-defined-label'
+        customWorkspace '/some/other/path'
+    }
+}
+pipeline {
+    agent {
+        label 'Slave 1'
+    }
+
+    stages {
+        stage('Build') {
+            agent {
+                docker { 
+                    image 'maven:3.5.3-jdk-10-slim'
+                    label 'Slave 2'
+                }
+            } 
+            steps {
+                sh 'mvn -v'
+            }
+        }
+        stage('Deploy') {
+            agent {
+                docker { 
+                    image 'ubuntu:16.04'
+                    reuseNode true
+                }
+            }
+            steps {
+                sh 'printenv'
+            }
+        }        
+    }
+reuseNode
+Логическое, по умолчанию false. Если true, запустите контейнер на узле, указанном на верхнем уровне конвейера, 
+в той же рабочей области, а не на новом узле целиком.
+
+pipeline {
+	agent none
+    stages {
+        stage('Checkout') {
+			agent any
+            steps {                
+                checkout([$class: 'GitSCM', 
+				branches: [[name: "origin/master"]], 
+				userRemoteConfigs: [[
+                url: 'https://github.com/pipelineascodecourse/pipeline-agent-dockerfile.git']]				
+				])
+            }
+        }
+        stage('Build'){   
+		    agent {
+				dockerfile true
+			}
+            steps{
+                sh 'cat /etc/lsb-release'
+            }
+        }
+    }
+}
+
+Для проектов, требующих более настраиваемой среды выполнения, Pipeline также поддерживает создание и запуск контейнера из Dockerfile
+исходного репозитория. В отличие от предыдущего подхода с использованием готового контейнера, использование agent { dockerfile true }
+синтаксиса позволит создать новый образ, Dockerfileа не извлекать его из Docker Hub .
+
+Повторное использование примера сверху, с более кастомным Dockerfile:
+
+Dockerfile
+FROM node:14-alpine
+
+RUN apk add -U subversion
+Зафиксировав это в корне исходного репозитория, Jenkinsfileможно изменить его для создания контейнера на основе этого,
+ Dockerfileа затем выполнить определенные шаги с использованием этого контейнера:
+
+Jenkinsfile (декларативный конвейер)
+pipeline {
+    agent { dockerfile true }
+    stages {
+        stage('Test') {
+            steps {
+                sh 'node --version'
+                sh 'svn --version'
+            }
+        }
+    }
+}
+pipeline {
+    agent none
+    stages {
+        stage('Checkout') {
+            agent any
+            steps {
+                checkout([$class: 'GitSCM', 
+				branches: [[name: "origin/master"]], 
+				userRemoteConfigs: [[
+                url: 'https://github.com/pipelineascodecourse/pipeline-agent-dockerfile-dir.git']],
+				])
+            }
+        }        
+        stage('dockerfile'){
+            agent { 
+                dockerfile {                    
+					dir 'dockerfileDir'
+                } 
+            }
+            steps{
+                sh 'cat /etc/lsb-release'
+            }
+        }
+    }
+}
+pipeline {
+    agent none
+    stages {
+        stage('Checkout') {
+            agent any
+            steps {
+                
+                checkout([$class: 'GitSCM', 
+				branches: [[name: "origin/master"]], 
+				userRemoteConfigs: [[
+                url: 'https://github.com/pipelineascodecourse/pipeline-agent-dockerfile-filename.git']]
+				])
+            }
+        }
+        stage('dockerfile'){            
+            agent { 
+                dockerfile {
+					filename 'myCustomNameDockerfile'
+                } 
+            }            
+            steps{
+                sh 'cat /etc/lsb-release'			
+            }
+        }
+    }
+}
+pipeline {
+    agent none
+    stages {
+        stage('Checkout') {
+            agent any
+            steps {                
+                checkout([$class: 'GitSCM', 
+				branches: [[name: "origin/master"]], 
+				userRemoteConfigs: [[
+                url: 'https://github.com/pipelineascodecourse/pipeline-agent-dockerfile.git']]
+				])
+            }
+        }        
+        stage('dockerfile'){            
+            agent { 
+                dockerfile {
+                    additionalBuildArgs '--tag mydockerfile:example'
+                } 
+            }            
+            steps{
+				sh 'cat /etc/lsb-release'
+            }
+        }
+    }
+}
+
+SHARED LIBRARIES
+
+Car.groovy
+package com.acceleratedskillup;
+
+class Car{
+     int numberOfDoors
+     String brand
+     String model
+     def script
+         Car(script) {
+             this.script = script
+         }
+         void printOutCar() {
+             script.echo "using script.echo"
+             script.echo "${numberOfDoors}"
+         }
+}
+
+@Library("pipeline-shared-lib")
+import com.acceleratedskillup.*;
+
+pipeline {
+    agent any
+    stages{
+        stage('Build'){
+            steps{
+                script{
+					def car = new Car(this)	
+					car.numberOfDoors = 4
+					car.brand="brandX"
+					car.model="modelY"
+                    car.printOutCar()
+                }
+            }         
+        }
+    }
+   
+}
+
+
+SCRIPTED
+
+node {
+	stage('Build'){
+		def mavenImage = docker.image('maven:3.5.3-jdk-10-slim')
+		
+		mavenImage.inside{
+			sh 'mvn -v' шелл команда в онтейнере
+		}
+    }
+}
+с использованием аргументов
+node {
+	stage('Build'){
+		def mavenImage = docker.image('maven:3.5.3-jdk-10-slim')
+		
+		mavenImage.inside('-e someEnv=dev',{  энверомент окружение
+			sh 'echo $someEnv' включается внутрь контейнера
+		})
+    }
+}
+всегда скачивать имидж
+node {
+	stage('Build'){
+		def mavenImage = docker.image('maven:3.5.3-jdk-10-slim')
+		
+		mavenImage.pull()
+		
+		mavenImage.inside('-e someEnv=dev',{ 
+			sh 'echo $someEnv'
+		})
+    }
+}
+
+
+customWorkspace
+node {
+	stage('Build'){
+	
+		ws('/var/lib/jenkins/workspace/scripted-dockerfile-customWorkspace/checkout-directory'){ рабочая директория
+	
+			checkout([$class: 'GitSCM', 
+				branches: [[name: "origin/master"]], 
+				userRemoteConfigs: [[
+                url: 'https://github.com/pipelineascodecourse/pipeline-agent-dockerfile.git']]				
+				])
+	
+			def myUbuntuImage = docker.build("my-ubuntu:my-latest")
+				
+			myUbuntuImage.inside{ 
+				sh 'cat /etc/lsb-release'
+			}
+		}
+    }
+}
+
+node {
+	stage('Build'){
+		def mavenImage = docker.withRegistry('https://quay.io','quay.io'){ регистри и кредишн
+			docker.image('quay.io/pipelineascodecourse/myfirstrepo:latest').inside {
+				sh 'printenv'
+			}
+		}
+    }
+}
+
+dockerfileDir
+node {
+	stage('Build'){
+		checkout([$class: 'GitSCM', 
+			branches: [[name: "origin/master"]], 
+			userRemoteConfigs: [[
+			url: 'https://github.com/pipelineascodecourse/pipeline-agent-dockerfile.git']]
+		])
+
+		def myCustomUbuntuImage = docker.build("my-ubuntu:my-latest","./dockerfileDir")
+
+		myCustomUbuntuImage.inside {
+			sh 'cat /etc/lsb-release'
+		}
+	}
+}
+
+filename
+node {
+	stage('Build'){
+		checkout([$class: 'GitSCM', 
+			branches: [[name: "origin/master"]], 
+			userRemoteConfigs: [[
+			url: 'https://github.com/pipelineascodecourse/pipeline-agent-dockerfile-filename.git']]
+		])
+
+		def myCustomUbuntuImage = docker.build("my-ubuntu:my-latest","--file myCustomNameDockerfile .")
+
+		myCustomUbuntuImage.inside {
+			sh 'cat /etc/lsb-release'
+		}
+	}
+}
+
+Аргументы 
+node {
+	stage('Build'){
+		checkout([$class: 'GitSCM', 
+			branches: [[name: "origin/master"]], 
+			userRemoteConfigs: [[
+			url: 'https://github.com/pipelineascodecourse/pipeline-agent-dockerfile.git']]
+		])
+
+		def myCustomUbuntuImage = docker.build("my-ubuntu:my-latest","--tag mydockerfile:example .")
+
+		myCustomUbuntuImage.inside {
+			sh 'cat /etc/lsb-release'
+		}
+	}
+}
+
+рабочая директория
+node {
+	stage('Build'){
+	
+		ws('/var/lib/jenkins/workspace/nodeDockerCustomWorkspace'){
+	
+			def mavenImage = docker.image('maven:3.5.3-jdk-10-slim')
+				
+			mavenImage.inside{ 
+				sh 'mvn -v'
+			}
+		}
+    }
+}
+
+ПОВТОРЫ-------------------
+example 1
+-------------------
+node{
+	stage('Build'){	
+		retry(3){
+			error "Error statement just got executed"
+		}
+	}
+}
+
+-------------------
+example 2
+-------------------
+node{
+	retry(3){
+		stage('Build'){		
+			error "Error statement just got executed"
+		}
+	}
+}
+
+-------------------
+example 3
+-------------------
+retry(3){
+	node{
+		error "Error statement just got executed"
+	}
+}
+
+ТАЙМАУТ
+-------------------
+example 1
+-------------------
+node{
+	stage('Build'){	
+	
+		//values: NANOSECONDS, MICROSECONDS, MILLISECONDS, SECONDS, MINUTES, HOURS, DAYS
+		timeout(time: 1, unit: 'SECONDS')  {
+			//sleeping for 2 seconds
+			sleep 2
+		}
+	}
+}
+
+-------------------
+example 2
+-------------------
+node{
+	timeout(time: 1, unit: 'SECONDS')  {
+		stage('Build'){		
+			sleep 2
+		}
+	}
+}
+
+-------------------
+example 3
+-------------------
+timeout(time: 1, unit: 'SECONDS')  {
+	node{
+		sleep 2
+	}
+}
+
+Времянные метки
+-------------------
+node level timestamp
+-------------------
+node{
+	timestamps {
+		stage('Build'){
+			echo 'Build stage echo statement printed out with timestamp'
+		}		
+		stage('Deploy'){
+			echo 'Deploy stage echo statement printed out with timestamp'
+		}		
+	}
+}
+
+-------------------
+stage level timestamp
+-------------------
+node{
+	stage('Build'){
+		timestamps {
+			echo 'echo statement printed out WITH timestamp'
+		}		
+	}
+	
+	stage('Deploy'){
+		echo 'echo statement printed out WITHOUT timestamp'
+	}
+}
+
+Условие 
+node{
+	def name="jeff"
+	def isGroovyCool = false
+    withEnv(['DEPLOY_TO=production']) {
+        stage('Build') {
+		
+			//when-environment condition
+			if(env.DEPLOY_TO == 'production')
+				println "Deploying"
+				
+			//when-equals condition
+			if(	name == "jeff")
+				println "name is ${name}"
+
+			//when-expression condition				
+			if(isGroovyCool == false)
+				println "groovy is always cool"
+				
+			//when-not condition
+			if(	name != "john")
+				println "name is not john"			
+			
+			//when-allOf condition			
+			if( name == "jeff" && !isGroovyCool)
+				println "name is ${name} and groovy is cool"
+				
+			//when-anyOf condition	
+			if( name == "jeff" || !isGroovyCool)
+				println "name is ${name} or groovy is cool"	
+        }
+    }
+}
+когда происходит комммит на гитхабе
+node{
+	checkout([$class: 'GitSCM', 				
+						branches: [[name: "origin/master"]], 
+						userRemoteConfigs: [[
+						url: 'https://github.com/pipelineascodecourse/scripted-when-changelog.git']]
+						])
+
+	def changeLogFound = false
+	def changeLogSets = currentBuild.changeSets
+	println  "changeLogSets.size(): ${changeLogSets.size()}"
+	for (int i = 0; i < changeLogSets.size(); i++) {
+	
+		println changeLogSets[i].getClass().getName()		
+		def entries = changeLogSets[i].items
+		
+		for (int j = 0; j < entries.length; j++) {
+			def entry = entries[j]
+			println "${entry.msg}"
+			if(entry.msg =~ /.*some_text.*/){
+				changeLogFound = true
+				break;
+			}
+		}
+		
+		if(changeLogFound)
+			break
+	}
+	
+	changeLogSets = null
+	
+	if(changeLogFound){
+		stage('ChangeLogFound'){
+			echo 'Change log found'
+		}
+	}
+	else{
+		stage('ChangeLogNotFound'){
+			echo 'Change log not found'
+		}
+	}	
+}
+
+node{
+	checkout([$class: 'GitSCM', 				
+						branches: [[name: "origin/master"]], 
+						userRemoteConfigs: [[
+						url: 'https://github.com/pipelineascodecourse/scripted-when-changeset.git']]
+						])
+
+	def changesetFound = false					
+	def changeLogSets = currentBuild.changeSets
+	println  "changeLogSets.size(): ${changeLogSets.size()}"
+	for (int i = 0; i < changeLogSets.size(); i++) {
+	
+		println changeLogSets[i].getClass().getName()	
+		def entries = changeLogSets[i].items
+		for (int j = 0; j < entries.length; j++) {
+			def entry = entries[j]
+			def files = new ArrayList(entry.affectedFiles)
+			for (int k = 0; k < files.size(); k++) {
+				def file = files[k]
+				if (file.path.endsWith(".js")){
+					changesetFound = true;
+					break;
+				}
+			}			
+			if(changesetFound)
+				break;
+		}
+	}
+	changeLogSets = null
+	echo "changesetFound:${changesetFound}"
+	
+	if(changesetFound){
+		stage('ChangesetFound'){
+			echo 'Change set found'
+		}
+	}
+	else{
+		stage('ChangesetNotFound'){
+			echo 'Change set not found'
+		}
+	}
+}
+
+Параллельное выполнение
+parallel example
+----------------
+node{
+	stage('Running in Parallel') {
+		parallel 'Parallel1': {
+			echo "Parallel1 executing"
+			sleep 10
+		},
+		'Parallel2': {
+			echo "Parallel2 executing"
+			sleep 10
+		},
+		'Parallel3': {
+			echo "Parallel3 executing"
+			sleep 10
+		},
+		failFast : true
+	}
+}
+----------------
+sequential example
+----------------
+node {
+	stage('Stage1') {
+		echo "Stage1 executing"
+		sleep 10
+	}
+	stage('Stage2') {
+		echo "Stage2 executing"
+		sleep 10
+	}
+	stage('Stage3') {
+		echo "Stage3 executing"
+		sleep 10
+	}
+}
+
+ВВОД
+----------
+example 1
+----------
+node{
+	def userInput = ""
+	stage('Build') {
+		userInput = input(id: 'userInput',    
+						message: 'Please specify environment',    
+						submitterParameter: "whoIsSubmitter",
+						parameters: [
+							string(name: 'environment', defaultValue: 'Dev', description: 'Environment to build for (Valid values: Dev, Test, Prod)'),
+							string(name: 'version', defaultValue: '1.0', description: 'Version number to build for'),
+							booleanParam(name: 'to_deploy_to_environment', defaultValue: true, description: ''),
+							choice(choices: 'US-EAST-1\nUS-WEST-2', description: 'What AWS region?', name: 'region'),
+							text(name:'myText', defaultValue:'myTextValue', description:'myText'),
+							password(name:'myPassword', defaultValue:'myPasswordValue', description:'myDescription'),
+							file(name:'myFile', description:'fileDescription'),
+							credentials(name:'myCredentials', description:'myCredentailsDesc', required:true)
+						]  
+		)
+	  
+		echo "We are building for ${userInput.environment}, ${userInput.version}, and we are deploying to environment: ${userInput.to_deploy_to_environment}"
+		echo "region:${userInput.region}, myText: ${userInput.myText}, myPassword: ${userInput.myPassword}, and myFile: ${userInput.myFile}"
+		echo "submitter is: ${userInput.whoIsSubmitter}"
+	}
+}
+
+		
+--------------
+example 2		
+Time out with input example
+-------------
+
+node{
+	def userInput = ""
+	stage('Build') {
+		timeout(time: 1, unit: 'SECONDS'){
+			userInput = input(id: 'userInput',    
+							message: 'Please specify environment',    
+							submitterParameter: "whoIsSubmitter",
+							parameters: [
+								string(name: 'environment', defaultValue: 'Dev', description: 'Environment to build for (Valid values: Dev, Test, Prod)'),
+								string(name: 'version', defaultValue: '1.0', description: 'Version number to build for'),
+								booleanParam(name: 'to_deploy_to_environment', defaultValue: true, description: ''),
+								choice(choices: 'US-EAST-1\nUS-WEST-2', description: 'What AWS region?', name: 'region'),
+								text(name:'myText', defaultValue:'myTextValue', description:'myText'),
+								password(name:'myPassword', defaultValue:'myPasswordValue', description:'myDescription'),
+								file(name:'myFile', description:'fileDescription'),
+								credentials(name:'myCredentials', description:'myCredentailsDesc', required:true)
+							]  
+			)
+		  
+			echo "We are building for ${userInput.environment}, ${userInput.version}, and we are deploying to environment: ${userInput.to_deploy_to_environment}"
+			echo "region:${userInput.region}, myText: ${userInput.myText}, myPassword: ${userInput.myPassword}, and myFile: ${userInput.myFile}"
+			echo "submitter is: ${userInput.whoIsSubmitter}"
+		}
+	}
+}
+
+
+	
+POST
+------------
+example 1
+------------
+node {
+    try {
+        stage('Build') {
+            script{
+				currentBuild.result = 'SUCCESS' //SUCCESS, ABORTED, UNSTABLE, or FAILURE
+			}
+        }
+    }
+	catch(err)
+	{
+		//does nothing here
+	}
+	finally {
+	
+		def currentResult = currentBuild.result
+		//this section is always
+		echo "always() code is executed"
+
+		//changed
+		if(currentBuild.previousBuild != null){
+			def previousResult = currentBuild.previousBuild.result
+			if (previousResult != null && previousResult != currentResult) {
+				echo 'changed() code is executed'
+			}
+		}
+
+		//fixed
+		if(currentBuild.previousBuild != null){
+			def previousResult = currentBuild.previousBuild.result
+			if (previousResult != null && ( previousResult == 'FAILURE' 
+				|| currentResult == 'UNSTABLE' ) 
+				&& currentResult=='SUCCESS') {
+				echo 'fixed() code is executed'
+			}
+		}
+				
+		//regression
+		if(currentBuild.previousBuild != null){
+			def previousResult = currentBuild.previousBuild.result
+			if (previousResult != null && ( currentResult == 'FAILURE' 
+				|| currentResult == 'UNSTABLE' 
+				|| currentResult == 'ABORTED') 
+				&& previousResult=='SUCCESS') {
+				echo 'regression() code is executed'
+			}
+		}		
+		
+		//aborted
+        if (currentResult == 'ABORTED') {
+            echo 'aborted() code is executed'
+        }
+		
+		//failure        
+        if (currentResult == 'FAILURE') {
+            echo 'failure() code is executed'
+        }
+
+	    //unstable
+
+        if (currentResult == 'SUCCESS') {
+            echo 'success() code is executed'
+        }		
+		
+	    //unstable
+        if (currentResult == 'UNSTABLE') {
+            echo 'unstable() code is executed'
+        }
+		
+		//cleanup
+		echo "cleanup() code is executed"
+    }
+}
+
+------------
+example 2
+------------
+
+node {
+
+    stage('Build') {
+		try {
+			script{
+				currentBuild.result = 'SUCCESS' //ABORTED, SUCCESS, UNSTABLE, or FAILURE
+			}
+        }
+		catch(err)
+		{
+			//does nothing here
+		}
+		finally {
+		
+			def currentResult = currentBuild.result
+			//this section is always
+			echo "always() code is executed"
+
+			//changed
+			if(currentBuild.previousBuild != null){
+				def previousResult = currentBuild.previousBuild.result
+				if (previousResult != null && previousResult != currentResult) {
+					echo 'changed() code is executed'
+				}
+			}
+
+			//fixed
+			if(currentBuild.previousBuild != null){
+				def previousResult = currentBuild.previousBuild.result
+				if (previousResult != null && ( previousResult == 'FAILURE' 
+					|| currentResult == 'UNSTABLE' ) 
+					&& currentResult=='SUCCESS') {
+					echo 'fixed() code is executed'
+				}
+			}
+					
+			//regression
+			if(currentBuild.previousBuild != null){
+				def previousResult = currentBuild.previousBuild.result
+				if (previousResult != null && ( currentResult == 'FAILURE' 
+					|| currentResult == 'UNSTABLE' 
+					|| currentResult == 'ABORTED') 
+					&& previousResult=='SUCCESS') {
+					echo 'regression() code is executed'
+				}
+			}		
+			
+			//aborted
+			if (currentResult == 'ABORTED') {
+				echo 'aborted() code is executed'
+			}
+			
+			//failure        
+			if (currentResult == 'FAILURE') {
+				echo 'failure() code is executed'
+			}
+
+			//unstable
+
+			if (currentResult == 'SUCCESS') {
+				echo 'success() code is executed'
+			}		
+			
+			//unstable
+			if (currentResult == 'UNSTABLE') {
+				echo 'unstable() code is executed'
+			}
+			
+			//cleanup
+			echo "cleanup() code is executed"
+		}
+	}
+	
+	stage('Deploy') {
+		echo 'This is Deploy stage'
+	}
+}
+
+Отменить старые сборки
+node{
+	properties(
+		[
+			buildDiscarder(
+				logRotator(
+					numToKeepStr: '1'
+				)
+			)
+		]
+	)
+	
+	stage('Build'){
+		echo 'Hello World'
+	}
+}
+
+node{
+	properties(
+		[
+			disableConcurrentBuilds()
+		]
+	)
+	
+	stage('Build'){
+		sleep(time: 10, unit: 'SECONDS') 	
+                echo 'Hello World'	
+	}
+}
+Запретить одновременное выполнение конвейера. Может быть полезно для предотвращения одновременного доступа к общим ресурсам и т. 
+
+skipstages
+node{	
+	stage('Build'){	
+		echo "setting current build to unstable"	
+        currentBuild.result = 'UNSTABLE'	
+    }	
+	
+	if(currentBuild.result != 'UNSTABLE'){
+		stage('Deploy'){	
+			echo "deploy is running"	
+		}
+	}
+}
+
+Джоб с параметрами 
+node() {
+   // adds job parameters within jenkinsfile
+   properties([
+     parameters([
+       string(
+         defaultValue: 'Dev',
+         description: 'Environment to build for (Valid values: Dev, Test, Prod)',
+         name: 'environment'
+       ),
+       booleanParam(
+         defaultValue: true,
+         description: '',
+         name: 'to_deploy_to_environment'
+       ),
+	   choice(
+		choices: 'US-EAST-1\nUS-WEST-2', 
+		description: 'What AWS region?', 
+		name: 'region'
+		),
+	   text(
+	   name:'myText', 
+	   defaultValue:'myTextValue', 
+	   description:'myText'
+	   ),
+	   password(
+	   name:'myPassword', 
+	   defaultValue:'myPasswordValue', 
+	   description:'myDescription'
+	   ),
+	   file(
+	   name:'myFile', 
+	   description:'fileDescription'
+	   ),
+	   credentials(
+	   name:'myCredentials', 
+	   description:'myCredentailsDesc', 
+	   required:true)			   
+     ])
+   ])
+   
+    echo "We are building for ${params.environment}, and we are deploying to environment: ${params.to_deploy_to_environment}"
+	echo "region:${params.region}, myText: ${params.myText}, myPassword: ${params.myPassword}, and myFile: ${params.myFile}"
+	echo "selected credentials is: ${params.myCredentials}"
+}
+
+TOOLS 
+node{
+	def mavenHome = tool name: 'maven3_0_5', type: 'maven'
+    sh "${mavenHome}/bin/mvn -v"
+}
+
+CRON 
+node{	
+	properties(
+		[
+			pipelineTriggers(
+				[
+					//minute, hour, day of month, month, and day of week (0 and 7 are sundays)
+					cron('0 1 2 3 1-7')
+					
+					//cron('H */2 1-3 1,3 2-4')
+					
+					//@yearly, @annually, @monthly, @weekly, @daily, @midnight, @hourly
+					//cron('@daily')
+					
+					//cron('TZ=Europe/London\n0 1 * * 1-7')										
+				]
+			),
+		]
+	)
+	stage('Build'){	
+        echo 'Hello World'		
+    }	
+}
+Проверять git по расписанию и запускать stage
+node{	
+	properties(
+		[
+			pipelineTriggers(
+				[
+					pollSCM('* * * * *')
+				]
+			),
+		]
+	)
+        stage('Build') {				
+			checkout([$class: 'GitSCM', 				
+			branches: [[name: "origin/master"]], 
+			userRemoteConfigs: [[
+			url: 'https://github.com/pipelineascodecourse/scripted-pollSCM.git']]])
+        }		
+}
+
+
+upstream 
+
+node{	
+	properties(
+		[
+			pipelineTriggers([
+				triggers: [
+						[
+							$class: 'jenkins.triggers.ReverseBuildTrigger',
+							upstreamProjects: "scripted-upstream-job1,scripted-upstream-job2", 
+							threshold: hudson.model.Result.SUCCESS //UNSTABLE, FAILURE, NOT_BUILT and ABORTED
+						]
+				]
+			]),
+		]
+	)
+	stage('Build') {			
+		echo 'scripted-upstream executed'
+	}
+}
+node {			
+	stage('Build') {			
+		echo 'scripted-upstream-job1 executed'			
+	}			
+}
+
+-------------
+
+node {			
+	stage('Build') {			
+		currentBuild.result='UNSTABLE'				
+	}			
+}
+
+node {			
+	stage('Build') {			
+		echo 'scripted-upstream-job2 executed'				
+	}			
+}
+
